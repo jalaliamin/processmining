@@ -8,7 +8,7 @@ variables:
   - name: 'autoVersionIncrement'
     value: True
   - name: 'newVersion'
-    value: '0.0.0'
+    value: '1.0.0'
 
 steps:
   - task: UsePythonVersion@0
