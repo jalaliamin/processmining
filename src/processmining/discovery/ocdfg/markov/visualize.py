@@ -48,8 +48,8 @@ def get_similarity_tuning_plot(tunned_similarity_clusters, chart_style='default'
             plt.annotate(label, (x,y), textcoords="offset points", xytext=(0,3), ha='center') 
         previous_y = y
 
-    plt.xlabel("Similarity threshold")
+    plt.xlabel("Threshold")
     plt.ylabel("Number Of Cluster")
-    plt.title("Cluster tuning based on the similarity threshold")
+    plt.title("Cluster tuning based on threshold")
     #plt.show()
     return fig

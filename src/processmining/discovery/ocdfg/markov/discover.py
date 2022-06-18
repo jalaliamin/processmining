@@ -49,21 +49,40 @@ def get_probability(ocdfgmkv, obj, a1, a2, dir):
         return ocdfgmkv[ocdfgmarkov_const.lbl_approach][obj][(a1,a2, dir)]
         
 def discover_similarity_matrix(ocdfgmkv, precision_round=2):
+    import math
     diff_matrix = {}
+    root_matrix = {}
     for dir in [ocdfgmarkov_const.lbl_in, ocdfgmarkov_const.lbl_out, ocdfgmarkov_const.lbl_inout]:
         diff_matrix[dir]={}
+        root_matrix[dir]={}
         for ot1 in ocdfgmkv[ocdfgmarkov_const.lbl_approach].keys():
+            if not ot1 in root_matrix[dir].keys():
+                root_matrix[dir][ot1] = 0
             for ot2 in ocdfgmkv[ocdfgmarkov_const.lbl_approach].keys():
+                if not ot2 in root_matrix[dir].keys():
+                    root_matrix[dir][ot2] = 0
                 diff = 0
                 for a1 in ocdfgmkv[ocdfg_const.lbl_activities]:
                     for a2 in ocdfgmkv[ocdfg_const.lbl_activities]:
-                        tmp = get_probability(ocdfgmkv, ot1, a1, a2, dir) - get_probability(ocdfgmkv, ot2, a1, a2, dir)
-                        if tmp!=0:
-                            diff += abs(tmp)
+                        a = get_probability(ocdfgmkv, ot1, a1, a2, dir)
+                        b = get_probability(ocdfgmkv, ot2, a1, a2, dir)
+                        if ot1==ot2:
+                            root_matrix[dir][ot1] += (a**2)
+                        diff += (a * b)
+                diff_matrix[dir][(ot1,ot2)] = diff
 
-                diff_matrix[dir][(ot1,ot2)] = round(diff,precision_round)
-
-    sim_matrix = {(i1,i2, dir):round(1-(diff_matrix[dir][(i1,i2)]/max(diff_matrix[dir].values())),precision_round) for dir in diff_matrix.keys() for (i1,i2) in diff_matrix[dir].keys()}
+    sim_matrix = {}
+    for dir in diff_matrix.keys():
+        for (i1,i2) in diff_matrix[dir].keys():
+            root = (root_matrix[dir][i1]+root_matrix[dir][i2])/2
+            # There might be no event for some object types, so this part will handle such situations
+            if root!=0:
+                sim_matrix[(i1,i2, dir)]=round((diff_matrix[dir][(i1,i2)]/root),precision_round)
+            else:
+                if i1==i2:
+                    sim_matrix[(i1,i2, dir)] = 1
+                else:
+                    sim_matrix[(i1,i2, dir)] = 0
 
     return sim_matrix
     
