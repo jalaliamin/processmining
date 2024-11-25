@@ -1,7 +1,7 @@
 import pm4py
 from pm4py.objects.ocel.obj import OCEL
 
-def drill_down_objecttype(ocel, object_type, object_attribute):
+def drill_down(ocel, object_type, object_attribute):
   assert type(ocel) is OCEL
   
   components = [('objects', ocel.objects), ('relations',ocel.relations), ('object_changes',ocel.object_changes)]
@@ -32,7 +32,7 @@ def drill_down_objecttype(ocel, object_type, object_attribute):
         ,res['object_changes']
   )
   
-def roll_up_objecttype(ocel, object_type, object_attribute):
+def roll_up(ocel, object_type, object_attribute):
   assert type(ocel) is OCEL
   
   components = [('objects', ocel.objects), ('relations',ocel.relations), ('object_changes',ocel.object_changes)]
