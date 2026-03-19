@@ -330,34 +330,34 @@ def drill_down(
         res["object_changes"],
     )
 
-
 def roll_up(
     ocel: OCEL,
-    object_type: str,
-    object_attribute: str,
+    object_types: Sequence[str],
+    target_object_type: str,
 ) -> OCEL:
     """
-    Roll up drilled-down object types back to their base type.
+    Roll up object types to a target object type.
 
-    This roll-up is intentionally mode-independent: it collapses any label of the form
-        (object_type, ...)
-    back to:
-        object_type
-    across objects, relations, and object_changes.
+    For all components that contain the object-type column, any row whose
+    object type is in `object_types` will have its type set to `target_object_type`.
+
+    This is a purely value-based mapping; it does not inspect tuple structure.
+    If you want to roll up drilled-down labels like '(order,region)',
+    you must explicitly pass those labels in `object_types`.
 
     Parameters
     ----------
     ocel:
         pm4py OCEL instance.
-    object_type:
-        Base object type to roll up to.
-    object_attribute:
-        Kept for API symmetry with drill_down. Not used by this implementation.
+    object_types:
+        Iterable of object type labels to be mapped / rolled up.
+    target_object_type:
+        Object type to assign to all matching rows.
 
     Returns
     -------
     OCEL
-        A deep-copied pm4py OCEL instance with rolled-up object types.
+        A deep-copied pm4py OCEL instance with updated object types.
     """
     if not isinstance(ocel, OCEL):
         raise TypeError("ocel must be an instance of pm4py.objects.ocel.obj.OCEL")
@@ -372,7 +372,7 @@ def roll_up(
         raise ValueError("OCEL.objects is empty; roll_up requires objects.")
 
     otype_col_obj = _detect_object_type_col(ocel, objects)
-    pattern = re.compile(rf"^\({re.escape(object_type)},.*\)$")
+    mapping_set = set(object_types)
 
     components = [
         ("objects", objects),
@@ -386,13 +386,24 @@ def roll_up(
             res[name] = df
             continue
 
-        if otype_col_obj not in df.columns:
+        # detect column name in this df; fall back to objects' column name if present
+        if _detect_object_type_col is not None:
+            try:
+                otype_col = _detect_object_type_col(ocel, df)
+            except ValueError:
+                # if detection fails, skip this df
+                res[name] = df
+                continue
+        else:
+            otype_col = otype_col_obj
+
+        if otype_col not in df.columns:
             res[name] = df
             continue
 
         df1 = df.copy()
-        mask = df1[otype_col_obj].astype(str).apply(lambda v: bool(pattern.match(v)))
-        df1.loc[mask, otype_col_obj] = object_type
+        mask = df1[otype_col].isin(mapping_set)
+        df1.loc[mask, otype_col] = target_object_type
         res[name] = df1
 
     return pm4py.objects.ocel.obj.OCEL(
@@ -442,19 +453,45 @@ def unfold(ocel: OCEL, event_type: str, object_type: str, qualifiers: Optional[S
     return ocel
 
 
-def fold(ocel: OCEL, event_type: str, object_type: str) -> OCEL:
+def fold(ocel: OCEL, event_types: Sequence[str], target_event_type: str) -> OCEL:
+    """
+    Fold multiple event labels into a single target event type.
+
+    Any event / relation whose activity is in `event_types` will have its
+    activity replaced by `target_event_type`.
+
+    Parameters
+    ----------
+    ocel:
+        pm4py OCEL instance.
+    event_types:
+        Iterable of event activity labels to be folded.
+        These are compared directly to the value in the activity column,
+        e.g.: ["(pay,invoice)", "(ship,order)"].
+    target_event_type:
+        The activity label that will replace all matches.
+
+    Returns
+    -------
+    OCEL
+        A deep-copied pm4py OCEL instance with updated event activities.
+    """
     if not isinstance(ocel, OCEL):
         raise TypeError("ocel must be an instance of pm4py.objects.ocel.obj.OCEL")
 
     ocel = copy.deepcopy(ocel)
 
     activity_col = pm4py.objects.ocel.constants.DEFAULT_EVENT_ACTIVITY
+    event_types_set = set(event_types)
 
-    ocel.events[activity_col] = ocel.events[activity_col].apply(
-        lambda val: event_type if val == f"({event_type},{object_type})" else val
-    )
-    ocel.relations[activity_col] = ocel.relations[activity_col].apply(
-        lambda val: event_type if val == f"({event_type},{object_type})" else val
-    )
+    # Events
+    if activity_col in ocel.events.columns:
+        mask = ocel.events[activity_col].isin(event_types_set)
+        ocel.events.loc[mask, activity_col] = target_event_type
+
+    # Relations
+    if activity_col in ocel.relations.columns:
+        mask = ocel.relations[activity_col].isin(event_types_set)
+        ocel.relations.loc[mask, activity_col] = target_event_type
 
     return ocel
